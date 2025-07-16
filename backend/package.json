@@ -1,0 +1,29 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.5",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "nodemailer": "^7.0.5",
+    "pdfkit": "^0.17.1",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.28.0",
+    "@types/jest": "^30.0.0",
+    "babel-jest": "^30.0.4",
+    "jest": "^30.0.4",
+    "supertest": "^7.1.3"
+  }
+}
