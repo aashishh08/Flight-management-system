@@ -1,0 +1,188 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Flight Booking System API",
+    "version": "1.0.0",
+    "description": "Minimal OpenAPI spec for all backend APIs."
+  },
+  "servers": [
+    { "url": "http://localhost:4000/api" }
+  ],
+  "paths": {
+    "/flights": {
+      "get": {
+        "summary": "Search flights",
+        "parameters": [
+          { "name": "origin", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "destination", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "departureDate", "in": "query", "required": true, "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of flights",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Flight" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bookings": {
+      "post": {
+        "summary": "Create a booking",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BookingRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booking created",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "bookingId": { "type": "string" } } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/airports": {
+      "get": {
+        "summary": "List airports",
+        "responses": {
+          "200": {
+            "description": "List of airports",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Airport" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "summary": "Send password reset email",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "email": { "type": "string", "format": "email" } }, "required": ["email"] }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Reset email sent" },
+          "400": { "description": "Error" }
+        }
+      }
+    },
+    "/flights/{id}/status": {
+      "patch": {
+        "summary": "Change flight status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string" }
+                },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flight status updated",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "success": { "type": "boolean" } } }
+              }
+            }
+          },
+          "400": { "description": "Invalid request" },
+          "404": { "description": "Flight not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Flight": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "flight_number": { "type": "string" },
+          "airline": { "$ref": "#/components/schemas/Airline" },
+          "aircraft": { "$ref": "#/components/schemas/Aircraft" },
+          "origin_airport": { "$ref": "#/components/schemas/Airport" },
+          "destination_airport": { "$ref": "#/components/schemas/Airport" },
+          "departure_time": { "type": "string", "format": "date-time" },
+          "arrival_time": { "type": "string", "format": "date-time" },
+          "duration": { "type": "integer" },
+          "base_price": { "type": "number" },
+          "status": { "type": "string" }
+        }
+      },
+      "Airline": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "code": { "type": "string" },
+          "name": { "type": "string" },
+          "logo_url": { "type": "string" }
+        }
+      },
+      "Aircraft": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "model": { "type": "string" },
+          "manufacturer": { "type": "string" },
+          "total_seats": { "type": "integer" }
+        }
+      },
+      "Airport": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "code": { "type": "string" },
+          "name": { "type": "string" },
+          "city": { "type": "string" },
+          "country": { "type": "string" },
+          "timezone": { "type": "string" }
+        }
+      },
+      "BookingRequest": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string" },
+          "flightIds": { "type": "array", "items": { "type": "string" } },
+          "passengers": { "type": "array", "items": { "type": "object" } },
+          "contactEmail": { "type": "string" },
+          "contactPhone": { "type": "string" },
+          "seatClass": { "type": "string" }
+        },
+        "required": ["userId", "flightIds", "passengers", "contactEmail"]
+      }
+    }
+  }
+} 

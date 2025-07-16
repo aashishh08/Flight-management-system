@@ -1,0 +1,16 @@
+# Ignore node_modules
+node_modules
+
+# Ignore logs
+*.log
+
+# Ignore build artifacts
+dist
+build
+.next
+
+# Ignore environment variables
+
+
+# Ignore system files
+.DS_Store
