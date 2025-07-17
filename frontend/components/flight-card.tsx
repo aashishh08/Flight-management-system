@@ -158,8 +158,8 @@ export function FlightCard({
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+        <div className="flex flex-col md:flex-row items-center justify-between min-w-0 gap-2">
+          <div className="flex items-center space-x-4 text-sm text-muted-foreground min-w-0 flex-shrink break-words w-full md:w-auto">
             <div className="flex items-center space-x-1">
               <Users className="w-4 h-4" />
               <span>
@@ -168,7 +168,7 @@ export function FlightCard({
             </div>
             <div>{flight.aircraft.model}</div>
           </div>
-          <div className="text-right">
+          <div className="text-right flex-none w-full md:w-auto">
             <div className="text-2xl font-bold text-primary">
               ${getClassPrice().toFixed(2)}
             </div>

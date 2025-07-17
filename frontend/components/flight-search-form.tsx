@@ -30,6 +30,8 @@ interface FlightSearchFormProps {
 }
 
 export function FlightSearchForm({ onSearch, loading }: FlightSearchFormProps) {
+  const STORAGE_KEY = "flightSearchFormData";
+
   const [tripType, setTripType] = useState<"one-way" | "round-trip">(
     "round-trip"
   );
@@ -46,6 +48,25 @@ export function FlightSearchForm({ onSearch, loading }: FlightSearchFormProps) {
     "economy" | "premium_economy" | "business" | "first_class"
   >("economy");
   const [airports, setAirports] = useState<Airport[]>([]);
+
+  // Restore form state from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        if (data.tripType) setTripType(data.tripType);
+        if (data.origin) setOrigin(data.origin);
+        if (data.destination) setDestination(data.destination);
+        if (data.departureDate) setDepartureDate(new Date(data.departureDate));
+        if (data.returnDate) setReturnDate(new Date(data.returnDate));
+        if (data.passengers) setPassengers(data.passengers);
+        if (data.cabinClass) setCabinClass(data.cabinClass);
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const loadAirports = async () => {
@@ -84,6 +105,20 @@ export function FlightSearchForm({ onSearch, loading }: FlightSearchFormProps) {
       cabinClass,
       tripType,
     };
+
+    // Save form state to localStorage
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        tripType,
+        origin,
+        destination,
+        departureDate: departureDate ? departureDate.toISOString() : undefined,
+        returnDate: returnDate ? returnDate.toISOString() : undefined,
+        passengers,
+        cabinClass,
+      })
+    );
 
     onSearch(searchParams);
   };

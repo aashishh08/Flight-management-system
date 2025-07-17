@@ -12,6 +12,8 @@ import { ArrowLeft, Filter, SortAsc } from "lucide-react";
 import type { Flight, SearchParams } from "@/lib/types";
 import { flightService } from "@/lib/flight-service";
 import { useFlightWorker } from "@/hooks/useFlightWorker";
+import { useAuth } from "@/components/auth-provider";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SearchPage() {
   const searchParams = useSearchParams();
@@ -26,6 +28,9 @@ export default function SearchPage() {
     "price-asc" | "price-desc" | null
   >(null);
   const [showSort, setShowSort] = useState(false);
+
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const searchQuery: SearchParams = {
     origin: searchParams.get("origin") || "",
@@ -91,6 +96,16 @@ export default function SearchPage() {
   }, [searchParams]);
 
   const handleContinueBooking = () => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to continue with your booking.",
+      });
+      setTimeout(() => {
+        router.push("/auth/login");
+      }, 1500);
+      return;
+    }
     if (
       searchQuery.tripType === "round-trip" &&
       selectedOutbound &&
@@ -205,8 +220,9 @@ export default function SearchPage() {
   // Ideal UX flow logic
   const isRoundTrip =
     searchQuery.tripType === "round-trip" && searchQuery.returnDate;
-  const noDepartureFlights = isRoundTrip && outboundFlights.length === 0;
-  const noReturnFlights = isRoundTrip && returnFlights.length === 0;
+  const noDepartureFlights =
+    isRoundTrip && outboundFlights.length === 0 && !loading;
+  const noReturnFlights = isRoundTrip && returnFlights.length === 0 && !loading;
   const bothAvailable =
     isRoundTrip && outboundFlights.length > 0 && returnFlights.length > 0;
 
@@ -339,10 +355,16 @@ export default function SearchPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className={`container mx-auto px-4 py-8`}>
+        <div
+          className={`grid grid-cols-1 ${
+            searchQuery.tripType === "round-trip" && searchQuery.returnDate
+              ? "lg:grid-cols-3"
+              : "lg:grid-cols-2"
+          } gap-8`}
+        >
           {/* Search Summary */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-full">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -371,7 +393,7 @@ export default function SearchPage() {
           </div>
 
           {/* Outbound Flights */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
             <Card>
               <CardHeader>
                 <CardTitle>Departure Flight</CardTitle>
@@ -408,7 +430,7 @@ export default function SearchPage() {
 
           {/* Return Flights (only for round-trip) */}
           {searchQuery.tripType === "round-trip" && searchQuery.returnDate && (
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-1">
               <Card>
                 <CardHeader>
                   <CardTitle>Return Flight</CardTitle>

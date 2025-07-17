@@ -1,19 +1,19 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { FlightSearchForm } from "@/components/flight-search-form"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import type { SearchParams } from "@/lib/types"
-import { Plane, MapPin, Clock, Star } from "lucide-react"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { FlightSearchForm } from "@/components/flight-search-form";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import type { SearchParams } from "@/lib/types";
+import { Plane, MapPin, Clock, Star } from "lucide-react";
 
 export default function HomePage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const handleSearch = async (params: SearchParams) => {
-    setLoading(true)
+    setLoading(true);
 
     // Create URL search params
     const searchParams = new URLSearchParams({
@@ -25,14 +25,14 @@ export default function HomePage() {
       infants: params.passengers.infants.toString(),
       cabinClass: params.cabinClass,
       tripType: params.tripType,
-    })
+    });
 
     if (params.returnDate) {
-      searchParams.set("returnDate", params.returnDate)
+      searchParams.set("returnDate", params.returnDate);
     }
 
-    router.push(`/search?${searchParams.toString()}`)
-  }
+    router.push(`/search?${searchParams.toString()}`);
+  };
 
   const popularDestinations = [
     { code: "LAX", city: "Los Angeles", country: "USA", price: 299 },
@@ -41,7 +41,7 @@ export default function HomePage() {
     { code: "DXB", city: "Dubai", country: "UAE", price: 799 },
     { code: "NRT", city: "Tokyo", country: "Japan", price: 899 },
     { code: "SIN", city: "Singapore", country: "Singapore", price: 749 },
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -55,7 +55,8 @@ export default function HomePage() {
               <h1 className="text-4xl md:text-6xl font-bold">SkyBooker</h1>
             </div>
             <p className="text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto">
-              Discover amazing destinations and book your perfect flight with ease
+              Discover amazing destinations and book your perfect flight with
+              ease
             </p>
             <div className="flex items-center justify-center space-x-6 text-blue-100">
               <div className="flex items-center space-x-2">
@@ -83,32 +84,43 @@ export default function HomePage() {
       {/* Popular Destinations */}
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Popular Destinations</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Popular Destinations
+          </h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Explore our most popular destinations and find great deals on flights
+            Explore our most popular destinations and find great deals on
+            flights
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {popularDestinations.map((destination) => (
-            <Card key={destination.code} className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{destination.city}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{destination.country}</p>
-                  </div>
-                  <Badge variant="secondary">{destination.code}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">From</span>
-                  <span className="text-2xl font-bold text-primary">${destination.price}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Carousel of country cards */}
+        <div className="flex justify-center">
+          <div className="flex space-x-6 overflow-x-auto pb-4 px-2 max-w-3xl mx-auto">
+            {Array.from(new Set(popularDestinations.map((d) => d.country))).map(
+              (country) => (
+                <Card
+                  key={country}
+                  className="min-w-[180px] flex-shrink-0 text-center rounded-2xl border-0 shadow-lg bg-gradient-to-br from-blue-400/80 to-indigo-500/80 text-white transform transition-transform duration-200 hover:scale-105 hover:shadow-2xl"
+                  style={{ backdropFilter: "blur(4px)" }}
+                >
+                  <CardContent className="flex flex-col items-center justify-center py-10">
+                    <span className="text-4xl mb-2">
+                      {/* Simple flag emoji for visual appeal */}
+                      {country === "USA" && "🇺🇸"}
+                      {country === "UK" && "🇬🇧"}
+                      {country === "France" && "🇫🇷"}
+                      {country === "UAE" && "🇦🇪"}
+                      {country === "Japan" && "🇯🇵"}
+                      {country === "Singapore" && "🇸🇬"}
+                    </span>
+                    <span className="text-2xl font-extrabold tracking-wide drop-shadow-lg mb-1">
+                      {country}
+                    </span>
+                  </CardContent>
+                </Card>
+              )
+            )}
+          </div>
         </div>
       </div>
 
@@ -116,7 +128,9 @@ export default function HomePage() {
       <div className="bg-white py-16">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Choose SkyBooker?</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Why Choose SkyBooker?
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -125,7 +139,10 @@ export default function HomePage() {
                 <Star className="w-8 h-8 text-blue-600" />
               </div>
               <h3 className="text-xl font-semibold mb-2">Best Prices</h3>
-              <p className="text-gray-600">We compare prices from hundreds of airlines to find you the best deals</p>
+              <p className="text-gray-600">
+                We compare prices from hundreds of airlines to find you the best
+                deals
+              </p>
             </div>
 
             <div className="text-center">
@@ -133,7 +150,10 @@ export default function HomePage() {
                 <Clock className="w-8 h-8 text-green-600" />
               </div>
               <h3 className="text-xl font-semibold mb-2">24/7 Support</h3>
-              <p className="text-gray-600">Our customer support team is available around the clock to help you</p>
+              <p className="text-gray-600">
+                Our customer support team is available around the clock to help
+                you
+              </p>
             </div>
 
             <div className="text-center">
@@ -141,11 +161,13 @@ export default function HomePage() {
                 <MapPin className="w-8 h-8 text-purple-600" />
               </div>
               <h3 className="text-xl font-semibold mb-2">Worldwide Coverage</h3>
-              <p className="text-gray-600">Book flights to over 1000 destinations across the globe</p>
+              <p className="text-gray-600">
+                Book flights to over 1000 destinations across the globe
+              </p>
             </div>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

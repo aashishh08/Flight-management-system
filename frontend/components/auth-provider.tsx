@@ -44,6 +44,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await authService.signOut();
     setUser(null);
+    // Clear localStorage and sessionStorage
+    if (typeof window !== "undefined") {
+      localStorage.clear();
+      sessionStorage.clear();
+      // Clear all cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
+      });
+      // Redirect to home page
+      window.location.href = "/";
+    }
   };
 
   return (

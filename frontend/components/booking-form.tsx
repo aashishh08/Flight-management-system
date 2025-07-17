@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
-import { useEffect } from "react";
 import {
   checkFlightStatusBeforeBooking,
   getLatestFlightsForBooking,
@@ -39,6 +38,24 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
+
+// Add regex validation helpers
+const validateEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const validatePhone = (phone: string) =>
+  /^\d{10,15}$/.test(phone.replace(/\D/g, ""));
+const validateCardNumber = (card: string) =>
+  /^\d{4} ?\d{4} ?\d{4} ?\d{4}$/.test(card.replace(/\s/g, ""));
+const validateExpiry = (expiry: string) => {
+  if (!/^\d{2}\/\d{2}$/.test(expiry)) return false;
+  const [mm, yy] = expiry.split("/").map(Number);
+  if (mm < 1 || mm > 12) return false;
+  const now = new Date();
+  const year = 2000 + yy;
+  const expiryDate = new Date(year, mm);
+  return expiryDate > now;
+};
+const validateCVV = (cvv: string) => /^\d{3,4}$/.test(cvv);
 
 interface BookingFormProps {
   flights: Flight[];
@@ -132,6 +149,15 @@ export function BookingForm({
   const [showBookingErrorModal, setShowBookingErrorModal] = useState(false);
   const [bookingErrorMessage, setBookingErrorMessage] = useState("");
   const router = useRouter();
+
+  // Add error state
+  const [errors, setErrors] = useState({
+    email: "",
+    phone: "",
+    cardNumber: "",
+    expiry: "",
+    cvv: "",
+  });
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
@@ -317,11 +343,70 @@ export function BookingForm({
     }, 2000); // 2 seconds delay
   };
 
+  // Update handlers to validate on change
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setContactInfo((prev) => ({ ...prev, email: value }));
+    setErrors((prev) => ({
+      ...prev,
+      email: value && !validateEmail(value) ? "Invalid email format" : "",
+    }));
+  };
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Only allow digits
+    const value = e.target.value.replace(/[^0-9]/g, "");
+    setContactInfo((prev) => ({ ...prev, phone: value }));
+    setErrors((prev) => ({
+      ...prev,
+      phone: value && !validatePhone(value) ? "Invalid phone number" : "",
+    }));
+  };
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPaymentDetails((prev) => ({ ...prev, cardNumber: value }));
+    setErrors((prev) => ({
+      ...prev,
+      cardNumber:
+        value && !validateCardNumber(value) ? "Invalid card number" : "",
+    }));
+  };
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPaymentDetails((prev) => ({ ...prev, expiry: value }));
+    setErrors((prev) => ({
+      ...prev,
+      expiry: value && !validateExpiry(value) ? "Invalid expiry (MM/YY)" : "",
+    }));
+  };
+  const handleCVVChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPaymentDetails((prev) => ({ ...prev, cvv: value }));
+    setErrors((prev) => ({
+      ...prev,
+      cvv: value && !validateCVV(value) ? "Invalid CVV" : "",
+    }));
+  };
+
   const isFormValid = () => {
     return (
       passengers.every((p) => p.first_name && p.last_name && p.date_of_birth) &&
       contactInfo.email &&
-      contactInfo.phone
+      contactInfo.phone &&
+      !errors.email &&
+      validateEmail(contactInfo.email) &&
+      !errors.phone &&
+      validatePhone(contactInfo.phone) &&
+      (!showPayment ||
+        (paymentDetails.cardNumber &&
+          paymentDetails.expiry &&
+          paymentDetails.cvv &&
+          paymentDetails.name &&
+          !errors.cardNumber &&
+          validateCardNumber(paymentDetails.cardNumber) &&
+          !errors.expiry &&
+          validateExpiry(paymentDetails.expiry) &&
+          !errors.cvv &&
+          validateCVV(paymentDetails.cvv)))
     );
   };
 
@@ -523,41 +608,21 @@ export function BookingForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Date of Birth *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !passenger.date_of_birth && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {passenger.date_of_birth
-                          ? format(new Date(passenger.date_of_birth), "PPP")
-                          : "Select date of birth"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={
-                          passenger.date_of_birth
-                            ? new Date(passenger.date_of_birth)
-                            : undefined
-                        }
-                        onSelect={(date) =>
-                          updatePassenger(
-                            index,
-                            "date_of_birth",
-                            date?.toISOString().split("T")[0] || ""
-                          )
-                        }
-                        disabled={(date) => date > new Date()}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <Input
+                    type="date"
+                    className="w-full"
+                    value={passenger.date_of_birth || ""}
+                    max={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => {
+                      // Only allow valid date or empty
+                      const val = e.target.value;
+                      if (!val || !isNaN(Date.parse(val))) {
+                        updatePassenger(index, "date_of_birth", val);
+                      }
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    required
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -614,11 +679,12 @@ export function BookingForm({
                 id="email"
                 type="email"
                 value={contactInfo.email}
-                onChange={(e) =>
-                  setContactInfo((prev) => ({ ...prev, email: e.target.value }))
-                }
+                onChange={handleEmailChange}
                 required
               />
+              {errors.email && (
+                <div className="text-destructive text-xs">{errors.email}</div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -627,11 +693,12 @@ export function BookingForm({
                 id="phone"
                 type="tel"
                 value={contactInfo.phone}
-                onChange={(e) =>
-                  setContactInfo((prev) => ({ ...prev, phone: e.target.value }))
-                }
+                onChange={handlePhoneChange}
                 required
               />
+              {errors.phone && (
+                <div className="text-destructive text-xs">{errors.phone}</div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -686,42 +753,17 @@ export function BookingForm({
                 <Input
                   id="cardNumber"
                   value={paymentDetails.cardNumber}
-                  onChange={(e) => {
-                    if (selectedSavedCard) {
-                      // Only allow editing the part before the last 4 digits
-                      const input = e.target.value.replace(/\s+/g, "");
-                      const fixedLast4 = selectedSavedCard.card_last4;
-                      // Remove non-digits and split
-                      let editable = input.slice(0, -4);
-                      // Format as **** **** **** 1234
-                      let formatted = editable
-                        .replace(/[^0-9]/g, "")
-                        .replace(/(.{4})/g, "$1 ")
-                        .trim();
-                      if (formatted.length > 0) formatted += " ";
-                      formatted += fixedLast4;
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        cardNumber: formatted,
-                      });
-                    } else {
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        cardNumber: e.target.value,
-                      });
-                    }
-                    if (
-                      selectedSavedCard &&
-                      !e.target.value.endsWith(selectedSavedCard.card_last4)
-                    ) {
-                      setSelectedSavedCard(null);
-                    }
-                  }}
+                  onChange={handleCardNumberChange}
                   required
                   maxLength={19}
                   placeholder="1234 5678 9012 3456"
                   // Not readOnly, but restrict last 4 digits
                 />
+                {errors.cardNumber && (
+                  <div className="text-destructive text-xs">
+                    {errors.cardNumber}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Name on Card *</Label>
@@ -745,35 +787,32 @@ export function BookingForm({
                 <Input
                   id="expiry"
                   value={paymentDetails.expiry}
-                  onChange={(e) => {
-                    setPaymentDetails({
-                      ...paymentDetails,
-                      expiry: e.target.value,
-                    });
-                    if (selectedSavedCard) setSelectedSavedCard(null);
-                  }}
+                  onChange={handleExpiryChange}
                   required
                   maxLength={5}
                   placeholder="12/34"
                   readOnly={!!selectedSavedCard}
                 />
+                {errors.expiry && (
+                  <div className="text-destructive text-xs">
+                    {errors.expiry}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cvv">CVV *</Label>
                 <Input
                   id="cvv"
                   value={paymentDetails.cvv}
-                  onChange={(e) =>
-                    setPaymentDetails({
-                      ...paymentDetails,
-                      cvv: e.target.value,
-                    })
-                  }
+                  onChange={handleCVVChange}
                   required
                   maxLength={4}
                   placeholder="123"
                   type="password"
                 />
+                {errors.cvv && (
+                  <div className="text-destructive text-xs">{errors.cvv}</div>
+                )}
               </div>
             </div>
             {/* Only show save payment option if not using a saved card */}
