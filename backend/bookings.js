@@ -1061,4 +1061,176 @@ router.post('/:id/change-seat-class', async (req, res) => {
   }
 });
 
+// Change seat class for specific flight_booking (already exists)
+router.post('/:id/change-seat-class/:flight_booking_id', async (req, res) => {
+  const { flight_booking_id } = req.params;
+  const { seat_class } = req.body;
+  if (!seat_class) {
+    return res.status(400).json({ error: 'Missing seat_class' });
+  }
+  try {
+    const { error: updateError } = await supabase
+      .from('flight_bookings')
+      .update({ seat_class, seat_number: null })
+      .eq('id', flight_booking_id);
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update seat class' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Change seat number for specific flight_booking
+router.post('/:id/change-seat-number/:flight_booking_id', async (req, res) => {
+  const { flight_booking_id } = req.params;
+  const { seat_number } = req.body;
+
+  if (!seat_number) {
+    return res.status(400).json({ error: 'Missing seat_number' });
+  }
+
+  try {
+    // Get the flight_booking details first
+    const { data: flightBooking, error: fbError } = await supabase
+      .from('flight_bookings')
+      .select('flight_id, seat_class')
+      .eq('id', flight_booking_id)
+      .single();
+
+    if (fbError || !flightBooking) {
+      return res.status(404).json({ error: 'Flight booking not found' });
+    }
+
+    // Check if seat is already taken for this specific flight and class
+    const { data: taken, error: takenError } = await supabase
+      .from('flight_bookings')
+      .select('id')
+      .eq('flight_id', flightBooking.flight_id)
+      .eq('seat_class', flightBooking.seat_class)
+      .eq('seat_number', seat_number)
+      .neq('id', flight_booking_id) // Exclude current booking
+      .maybeSingle();
+
+    if (takenError) {
+      return res.status(500).json({ error: 'Failed to check seat availability' });
+    }
+
+    if (taken) {
+      return res.status(409).json({ error: 'Seat already taken' });
+    }
+
+    // Update the seat number
+    const { error: updateError } = await supabase
+      .from('flight_bookings')
+      .update({ seat_number })
+      .eq('id', flight_booking_id);
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update seat number' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Change seat class by flight_id (for a specific passenger and flight leg)
+router.post('/:id/change-seat-class-by-flight', async (req, res) => {
+  const { id } = req.params;
+  const { passenger_id, flight_id, seat_class } = req.body;
+
+  if (!passenger_id || !flight_id || !seat_class) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    // Find the specific flight_booking
+    const { data: flightBooking, error: fbError } = await supabase
+      .from('flight_bookings')
+      .select('*')
+      .eq('booking_id', id)
+      .eq('passenger_id', passenger_id)
+      .eq('flight_id', flight_id)
+      .single();
+
+    if (fbError || !flightBooking) {
+      return res.status(404).json({ error: 'Flight booking not found' });
+    }
+
+    // Update the seat class and clear seat number
+    const { error: updateError } = await supabase
+      .from('flight_bookings')
+      .update({ seat_class, seat_number: null })
+      .eq('id', flightBooking.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update seat class' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Change seat number by flight_id (for a specific passenger and flight leg)
+router.post('/:id/change-seat-number-by-flight', async (req, res) => {
+  const { id } = req.params;
+  const { passenger_id, flight_id, seat_number } = req.body;
+
+  if (!passenger_id || !flight_id || !seat_number) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    // Find the specific flight_booking
+    const { data: flightBooking, error: fbError } = await supabase
+      .from('flight_bookings')
+      .select('*')
+      .eq('booking_id', id)
+      .eq('passenger_id', passenger_id)
+      .eq('flight_id', flight_id)
+      .single();
+
+    if (fbError || !flightBooking) {
+      return res.status(404).json({ error: 'Flight booking not found' });
+    }
+
+    // Check if seat is taken
+    const { data: taken, error: takenError } = await supabase
+      .from('flight_bookings')
+      .select('id')
+      .eq('flight_id', flight_id)
+      .eq('seat_class', flightBooking.seat_class)
+      .eq('seat_number', seat_number)
+      .neq('id', flightBooking.id)
+      .maybeSingle();
+
+    if (takenError) {
+      return res.status(500).json({ error: 'Failed to check seat availability' });
+    }
+
+    if (taken) {
+      return res.status(409).json({ error: 'Seat already taken' });
+    }
+
+    // Update the seat number
+    const { error: updateError } = await supabase
+      .from('flight_bookings')
+      .update({ seat_number })
+      .eq('id', flightBooking.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update seat number' });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

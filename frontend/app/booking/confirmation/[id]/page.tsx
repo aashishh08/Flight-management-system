@@ -278,7 +278,31 @@ export default function BookingConfirmationPage() {
       email: booking.contact_email || "",
       phone: booking.contact_phone || "",
     });
-    setModalPassengers(deepClone(booking.passengers || []));
+
+    // Build modalPassengers: for each passenger, map their flight_bookings
+    const passengerMap: Record<string, any> = {};
+    (booking.passengers || []).forEach((p: any) => {
+      passengerMap[p.id] = {
+        ...deepClone(p),
+        flights: [],
+      };
+    });
+    (booking.flight_bookings || []).forEach((fb: any) => {
+      if (passengerMap[fb.passenger.id]) {
+        passengerMap[fb.passenger.id].flights.push({
+          flight_id: fb.flight.id,
+          flight_number: fb.flight.flight_number,
+          flight_label: `${fb.flight.airline?.name || ""} ${
+            fb.flight.flight_number
+          } (${fb.flight.origin_airport?.code || "?"} → ${
+            fb.flight.destination_airport?.code || "?"
+          })`,
+          seat_class: fb.seat_class,
+          seat_number: fb.seat_number,
+        });
+      }
+    });
+    setModalPassengers(Object.values(passengerMap));
     setOriginalPassengerNames(
       (booking.passengers || []).map((p: any) => ({
         first_name: p.first_name,
@@ -295,7 +319,6 @@ export default function BookingConfirmationPage() {
         booking.flight_bookings?.[0]?.flight?.destination_airport?.code;
       const departureDate =
         booking.flight_bookings?.[0]?.flight?.departure_time?.split("T")[0];
-
       const res = await fetch(
         `${API_BASE}/flights/search?origin=${origin}&destination=${destination}&departureDate=${departureDate}`
       );
@@ -304,7 +327,6 @@ export default function BookingConfirmationPage() {
     } catch {
       setModalAvailableFlights([]);
     }
-
     setShowEditModal(true);
   };
 
@@ -397,31 +419,37 @@ export default function BookingConfirmationPage() {
         }),
       });
 
-      // Save seat class for each passenger
+      // Save seat class and seat number for each passenger/flight
       for (const p of modalPassengers) {
-        if (p.seat_class) {
-          await fetch(`${API_BASE}/bookings/${bookingId}/change-seat-class`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              passenger_id: p.id,
-              seat_class: p.seat_class,
-            }),
-          });
-        }
-      }
-
-      // Save seat numbers
-      for (const p of modalPassengers) {
-        if (p.seat_number) {
-          await fetch(`${API_BASE}/bookings/${bookingId}/change-seat-number`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              passenger_id: p.id,
-              seat_number: p.seat_number,
-            }),
-          });
+        for (const f of p.flights) {
+          if (f.seat_class) {
+            await fetch(
+              `${API_BASE}/bookings/${bookingId}/change-seat-class-by-flight`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  passenger_id: p.id,
+                  flight_id: f.flight_id,
+                  seat_class: f.seat_class,
+                }),
+              }
+            );
+          }
+          if (f.seat_number) {
+            await fetch(
+              `${API_BASE}/bookings/${bookingId}/change-seat-number-by-flight`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  passenger_id: p.id,
+                  flight_id: f.flight_id,
+                  seat_number: f.seat_number,
+                }),
+              }
+            );
+          }
         }
       }
 
@@ -781,7 +809,11 @@ export default function BookingConfirmationPage() {
                   <span>Status</span>
                   <Badge
                     variant={
-                      booking.status === "confirmed" ? "default" : "secondary"
+                      booking.status === "confirmed"
+                        ? "default"
+                        : booking.status === "cancelled"
+                        ? "destructive"
+                        : "secondary"
                     }
                   >
                     {booking.status}
@@ -953,6 +985,13 @@ export default function BookingConfirmationPage() {
       default:
         return flight.base_price;
     }
+  }
+
+  // Helper to get badge variant for booking status
+  function getBadgeVariant(status: string) {
+    if (status === "confirmed") return "default";
+    if (status === "cancelled") return "destructive";
+    return "secondary";
   }
 
   return (
@@ -1325,15 +1364,7 @@ export default function BookingConfirmationPage() {
                 </div>
                 <div className="flex justify-between">
                   <span>Status</span>
-                  <Badge
-                    variant={
-                      booking.status === "confirmed"
-                        ? "default"
-                        : booking.status === "cancelled"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
+                  <Badge variant={getBadgeVariant(String(booking.status))}>
                     {booking.status}
                   </Badge>
                 </div>
@@ -1442,22 +1473,7 @@ export default function BookingConfirmationPage() {
                 />
               </div>
 
-              {/* Flight selection */}
-              <div>
-                <Label>Flight</Label>
-                <div className="border rounded px-2 py-1 w-full bg-gray-100 text-gray-700">
-                  {(() => {
-                    const f = modalAvailableFlights.find(
-                      (f) => f.id === modalFlightId
-                    );
-                    return f
-                      ? `${f.airline?.name || ""} ${f.flight_number} (${
-                          f.origin_airport?.code || "?"
-                        } → ${f.destination_airport?.code || "?"})`
-                      : "Flight not found";
-                  })()}
-                </div>
-              </div>
+             
 
               {/* Passengers */}
               <div>
@@ -1468,6 +1484,7 @@ export default function BookingConfirmationPage() {
                     className="border rounded p-3 mb-2 flex flex-col gap-2"
                   >
                     <div className="flex gap-2">
+                      {/* Name fields (same as before) */}
                       <div className="relative flex-1 min-w-0">
                         <Input
                           value={p.first_name}
@@ -1601,81 +1618,121 @@ export default function BookingConfirmationPage() {
                           p.passenger_type.slice(1)}
                       </div>
                     </div>
-                    {/* Seat class selection (editable) */}
-                    <div>
-                      <Label>Seat Class</Label>
-                      <select
-                        value={p.seat_class || "economy"}
-                        onChange={(e) =>
-                          setModalPassengers((pass) =>
-                            pass.map((x, i) =>
-                              i === idx
-                                ? { ...x, seat_class: e.target.value }
-                                : x
-                            )
-                          )
-                        }
-                        className="border rounded px-2 py-1 w-full"
+                    {/* For each flight leg, render seat class/number */}
+                    {p.flights.map((f: any, fIdx: number) => (
+                      <div
+                        key={f.flight_id}
+                        className="border rounded p-2 mt-2 bg-gray-50"
                       >
-                        <option value="economy">Economy</option>
-                        <option value="premium_economy">Premium Economy</option>
-                        <option value="business">Business</option>
-                        <option value="first_class">First Class</option>
-                      </select>
-                    </div>
-                    {/* Seat number selection (editable) */}
-                    <div>
-                      <Label>Seat</Label>
-                      <select
-                        value={p.seat_number || ""}
-                        onFocus={() =>
-                          modalFlightId &&
-                          fetchModalAvailableSeats(
-                            modalFlightId,
-                            p.seat_class || "economy",
-                            p.id || String(idx)
-                          )
-                        }
-                        onChange={(e) =>
-                          setModalPassengers((pass) =>
-                            pass.map((x, i) =>
-                              i === idx
-                                ? { ...x, seat_number: e.target.value }
-                                : x
-                            )
-                          )
-                        }
-                        className="border rounded px-2 py-1 w-full"
-                      >
-                        <option value="">Select seat</option>
-                        {/* Show all possible seats, marking taken ones as disabled */}
-                        {(() => {
-                          const available = new Set(
-                            modalAvailableSeats[p.id || String(idx)] || []
-                          );
-                          // If __all__ is not set, fallback to available only
-                          const seatList = Array.isArray(
-                            modalAvailableSeats.__all__
-                          )
-                            ? modalAvailableSeats.__all__
-                            : Array.from(available);
-
-                          return seatList.map((seat) => {
-                            const isAvailable = available.has(seat);
-                            return (
-                              <option
-                                key={seat}
-                                value={seat}
-                                disabled={!isAvailable}
-                              >
-                                {seat}
-                                {!isAvailable ? " (Taken)" : ""}
+                        <div className="font-semibold mb-1">
+                          {f.flight_label ||
+                            f.flight_number ||
+                            `Flight ${fIdx + 1}`}
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <Label>Seat Class</Label>
+                            <select
+                              value={f.seat_class || "economy"}
+                              onChange={(e) => {
+                                const newClass = e.target.value;
+                                setModalPassengers((pass) =>
+                                  pass.map((x, i) =>
+                                    i === idx
+                                      ? {
+                                          ...x,
+                                          flights: x.flights.map(
+                                            (flight: any) =>
+                                              flight.flight_id === f.flight_id
+                                                ? {
+                                                    ...flight,
+                                                    seat_class: newClass,
+                                                    seat_number: "",
+                                                  }
+                                                : flight
+                                          ),
+                                        }
+                                      : x
+                                  )
+                                );
+                              }}
+                              className="border rounded px-2 py-1 w-full"
+                            >
+                              <option value="economy">Economy</option>
+                              <option value="premium_economy">
+                                Premium Economy
                               </option>
-                            );
-                          });
-                        })()}
-                      </select>
-                    </div>
+                              <option value="business">Business</option>
+                              <option value="first_class">First Class</option>
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <Label>Seat</Label>
+                            <select
+                              value={f.seat_number || ""}
+                              onFocus={() =>
+                                fetchModalAvailableSeats(
+                                  f.flight_id,
+                                  f.seat_class || "economy",
+                                  `${p.id}_${f.flight_id}`
+                                )
+                              }
+                              onChange={(e) => {
+                                const newSeat = e.target.value;
+                                setModalPassengers((pass) =>
+                                  pass.map((x, i) =>
+                                    i === idx
+                                      ? {
+                                          ...x,
+                                          flights: x.flights.map(
+                                            (flight: any) =>
+                                              flight.flight_id === f.flight_id
+                                                ? {
+                                                    ...flight,
+                                                    seat_number: newSeat,
+                                                  }
+                                                : flight
+                                          ),
+                                        }
+                                      : x
+                                  )
+                                );
+                              }}
+                              className="border rounded px-2 py-1 w-full"
+                            >
+                              <option value="">Select seat</option>
+                              {/* Show all possible seats, marking taken ones as disabled */}
+                              {(() => {
+                                const available = new Set(
+                                  modalAvailableSeats[
+                                    `${p.id}_${f.flight_id}`
+                                  ] || []
+                                );
+                                const seatList = Array.isArray(
+                                  modalAvailableSeats.__all__
+                                )
+                                  ? modalAvailableSeats.__all__
+                                  : Array.from(available);
+                                return seatList.map((seat) => {
+                                  const isAvailable = available.has(seat);
+                                  return (
+                                    <option
+                                      key={seat}
+                                      value={seat}
+                                      disabled={!isAvailable}
+                                    >
+                                      {seat}
+                                      {!isAvailable ? " (Taken)" : ""}
+                                    </option>
+                                  );
+                                });
+                              })()}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Remove button as before */}
                     {modalPassengers.length > 1 && (
                       <Button
                         size="sm"
