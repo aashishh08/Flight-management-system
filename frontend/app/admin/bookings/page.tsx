@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getAdminBookings } from "@/lib/admin-api";
+import AdminRoute from "@/components/admin-route";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-export default function AdminBookingsPage() {
+function BookingsPageContent() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,5 +208,13 @@ export default function AdminBookingsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <AdminRoute>
+      <BookingsPageContent />
+    </AdminRoute>
   );
 }

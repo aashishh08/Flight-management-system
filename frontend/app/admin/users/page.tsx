@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getAdminUsers } from "@/lib/admin-api";
+import AdminRoute from "@/components/admin-route";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-export default function AdminUsersPage() {
+function UsersPageContent() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,5 +209,13 @@ export default function AdminUsersPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <AdminRoute>
+      <UsersPageContent />
+    </AdminRoute>
   );
 }

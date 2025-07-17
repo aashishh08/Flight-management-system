@@ -1,4 +1,5 @@
 import type { Flight, SearchParams, Airport } from "./types";
+import { cache } from "./indexdb";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
@@ -30,6 +31,17 @@ export async function getLatestFlightsForBooking(
 }
 
 export async function searchFlights(params: SearchParams): Promise<Flight[]> {
+  // Create a cache key based on search params
+  const cacheKey = `flights-${params.origin}-${params.destination}-${
+    params.departureDate
+  }-${params.cabinClass || ""}-${params.passengers?.adults || 1}-${
+    params.passengers?.children || 0
+  }-${params.passengers?.infants || 0}`;
+  // Try to get from cache first
+  const cached = await cache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
   const url = new URL(`${API_BASE}/flights/search`);
   url.searchParams.set("origin", params.origin);
   url.searchParams.set("destination", params.destination);
@@ -37,7 +49,10 @@ export async function searchFlights(params: SearchParams): Promise<Flight[]> {
   // Optionally add more params if needed
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error("Failed to fetch flights");
-  return await res.json();
+  const data = await res.json();
+  // Store in cache for 5 minutes
+  await cache.set(cacheKey, data, 5);
+  return data;
 }
 
 export async function getFlightById(id: string): Promise<Flight | null> {

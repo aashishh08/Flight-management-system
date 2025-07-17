@@ -112,6 +112,7 @@ export interface UserProfile {
   updated_at: string;
   user_id: string;
   email?: string; // for convenience in UI
+  role?: string; // add this line for admin checks
 }
 
 export interface SavedPayment {

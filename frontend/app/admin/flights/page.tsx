@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getAdminFlights, updateFlightStatus } from "@/lib/admin-api";
+import AdminRoute from "@/components/admin-route";
 
 const STATUS_OPTIONS = ["scheduled", "On-Time", "Delayed", "Cancelled"];
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-export default function AdminFlightsPage() {
+function FlightsPageContent() {
   const [flights, setFlights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -270,5 +271,13 @@ export default function AdminFlightsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function FlightsPage() {
+  return (
+    <AdminRoute>
+      <FlightsPageContent />
+    </AdminRoute>
   );
 }

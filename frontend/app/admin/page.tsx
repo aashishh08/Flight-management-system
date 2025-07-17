@@ -21,8 +21,9 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import AdminRoute from "@/components/admin-route";
 
-export default function AdminDashboard() {
+function AdminDashboard() {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -278,5 +279,13 @@ export default function AdminDashboard() {
 
       {/* ...rest of dashboard... */}
     </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  return (
+    <AdminRoute>
+      <AdminDashboard />
+    </AdminRoute>
   );
 }

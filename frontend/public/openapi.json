@@ -29,6 +29,68 @@
         }
       }
     },
+    "/flights/search": {
+      "get": {
+        "summary": "Search flights (alias for /flights)",
+        "parameters": [
+          { "name": "origin", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "destination", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "departureDate", "in": "query", "required": true, "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of flights",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Flight" } } } }
+          }
+        }
+      }
+    },
+    "/flights/{id}": {
+      "get": {
+        "summary": "Get flight by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Flight details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Flight" } } } },
+          "404": { "description": "Flight not found" }
+        }
+      }
+    },
+    "/flights/{id}/all-seats": {
+      "get": {
+        "summary": "Get all seat numbers for a flight and class",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "seat_class", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List of seat numbers", "content": { "application/json": { "schema": { "type": "array", "items": { "type": "string" } } } } },
+          "400": { "description": "Missing seat_class" },
+          "404": { "description": "Flight not found" }
+        }
+      }
+    },
+    "/flights/statuses": {
+      "post": {
+        "summary": "Get status for multiple flight IDs",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "flightIds": { "type": "array", "items": { "type": "string" } } }, "required": ["flightIds"] } } } },
+        "responses": {
+          "200": { "description": "Statuses for flights", "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "status": { "type": "string" } } } } } } },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    },
+    "/flights/batch": {
+      "post": {
+        "summary": "Get full flight data for multiple IDs",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "flightIds": { "type": "array", "items": { "type": "string" } } }, "required": ["flightIds"] } } } },
+        "responses": {
+          "200": { "description": "Flights data", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Flight" } } } } },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    },
     "/bookings": {
       "post": {
         "summary": "Create a booking",
@@ -50,6 +112,36 @@
             }
           }
         }
+      },
+      "get": {
+        "summary": "Get bookings for a user",
+        "parameters": [ { "name": "userId", "in": "query", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "List of bookings", "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object" } } } } } }
+      }
+    },
+    "/bookings/{id}": {
+      "get": {
+        "summary": "Get booking by ID",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "Booking details", "content": { "application/json": { "schema": { "type": "object" } } } }, "404": { "description": "Booking not found" } }
+      },
+      "put": {
+        "summary": "Update booking by ID",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Booking updated" }, "404": { "description": "Booking not found" } }
+      },
+      "delete": {
+        "summary": "Cancel booking by ID",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "Booking cancelled" }, "404": { "description": "Booking not found" } }
+      }
+    },
+    "/bookings/{id}/pdf": {
+      "get": {
+        "summary": "Download booking PDF",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "PDF file", "content": { "application/pdf": {} } }, "404": { "description": "Booking not found" } }
       }
     },
     "/airports": {
@@ -65,6 +157,46 @@
             }
           }
         }
+      }
+    },
+    "/airports/popular": {
+      "get": {
+        "summary": "Get popular airports",
+        "responses": { "200": { "description": "List of airports", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Airport" } } } } } }
+      }
+    },
+    "/saved-payments": {
+      "post": {
+        "summary": "Save a payment method",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "user_id": { "type": "string" }, "card_last4": { "type": "string" }, "card_expiry": { "type": "string" }, "card_name": { "type": "string" } }, "required": ["user_id", "card_last4", "card_expiry", "card_name"] } } } },
+        "responses": { "200": { "description": "Payment method saved" }, "400": { "description": "Missing required fields" } }
+      },
+      "get": {
+        "summary": "Get saved payments for a user",
+        "parameters": [ { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "List of saved payments", "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object" } } } } } }
+      },
+      "delete": {
+        "summary": "Delete a saved payment method",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "string" }, "user_id": { "type": "string" } }, "required": ["id", "user_id"] } } } },
+        "responses": { "200": { "description": "Payment method deleted" }, "400": { "description": "Missing required fields" } }
+      }
+    },
+    "/user-profile": {
+      "get": {
+        "summary": "Get user profile by user_id",
+        "parameters": [ { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "User profile", "content": { "application/json": { "schema": { "type": "object" } } } }, "404": { "description": "User not found" } }
+      },
+      "post": {
+        "summary": "Create user profile",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "User profile created" } }
+      },
+      "put": {
+        "summary": "Update user profile",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "User profile updated" } }
       }
     },
     "/auth/reset-password": {
@@ -121,6 +253,26 @@
           "400": { "description": "Invalid request" },
           "404": { "description": "Flight not found" }
         }
+      }
+    },
+    "/flight-status/{flightId}/stream": {
+      "get": {
+        "summary": "SSE: Get real-time flight status by flightId",
+        "parameters": [ { "name": "flightId", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "SSE stream" }, "400": { "description": "Missing flightId" } }
+      }
+    },
+    "/flight-status": {
+      "get": {
+        "summary": "SSE: Get real-time flight status by query param",
+        "parameters": [ { "name": "flightId", "in": "query", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "SSE stream" }, "400": { "description": "Missing flightId" } }
+      }
+    },
+    "/admin": {
+      "get": {
+        "summary": "Admin dashboard endpoint",
+        "responses": { "200": { "description": "Admin dashboard data" } }
       }
     }
   },
