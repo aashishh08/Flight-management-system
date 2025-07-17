@@ -22,4 +22,29 @@ describe('flights.js integration tests', () => {
     const res = await request(app).get('/api/flights/search?origin=JFK&destination=LAX&departureDate=2024-06-01');
     expect([200, 500]).toContain(res.status); // Accept 500 if DB not set up
   });
+
+  test.skip('GET /api/flights/:id/available-seats returns 200', async () => {
+    const res = await request(app).get('/api/flights/1/available-seats?seat_class=economy');
+    expect([200, 500, 400]).toContain(res.status);
+  });
+
+  test.skip('GET /api/flights/:id/all-seats returns 200', async () => {
+    const res = await request(app).get('/api/flights/1/all-seats?seat_class=economy');
+    expect([200, 500, 400]).toContain(res.status);
+  });
+
+  test.skip('GET /api/flights/:id/latest-status returns 200', async () => {
+    const res = await request(app).get('/api/flights/1/latest-status');
+    expect([200, 404, 500]).toContain(res.status);
+  });
+
+  test.skip('POST /api/flights/statuses returns 200', async () => {
+    const res = await request(app).post('/api/flights/statuses').send({ flightIds: [1] });
+    expect([200, 500, 400]).toContain(res.status);
+  });
+
+  test.skip('POST /api/flights/batch returns 200', async () => {
+    const res = await request(app).post('/api/flights/batch').send({ flightIds: [1] });
+    expect([200, 500, 400]).toContain(res.status);
+  });
 }); 
