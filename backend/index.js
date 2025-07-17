@@ -8,6 +8,7 @@ import { flightStatusStream } from './flightStatusStream.js';
 import savedPaymentsRouter from './savedPayments.js';
 import userProfileRouter from './userProfile.js';
 import logger from './logger.js';
+import adminRouter from './admin.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use('/api/airports', airportsRouter);
 app.get('/api/flight-status/:flightId/stream', flightStatusStream);
 app.use('/api/saved-payments', savedPaymentsRouter);
 app.use('/api/user-profile', userProfileRouter);
+app.use('/api/admin', adminRouter);
 
 // Add new SSE endpoint for /api/flight-status?flightId=...
 app.get('/api/flight-status', (req, res) => {

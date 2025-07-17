@@ -16,6 +16,7 @@ import { getPayments, addPayment, deletePayment } from "@/lib/payment-service";
 import type { UserProfile, SavedPayment } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { authService } from "@/lib/auth";
+import { useToast, toast } from "@/hooks/use-toast";
 
 export default function ProfileSettingsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -71,6 +72,10 @@ export default function ProfileSettingsPage() {
     setLoading(true);
     try {
       await updateProfile(user.id, profile);
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been saved successfully.",
+      });
     } catch {
       setError("Failed to update profile");
     } finally {

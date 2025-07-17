@@ -776,17 +776,20 @@ export function BookingForm({
                 />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="savePayment"
-                checked={savePayment}
-                onChange={(e) => setSavePayment(e.target.checked)}
-              />
-              <Label htmlFor="savePayment">
-                Save payment details for future bookings (masked)
-              </Label>
-            </div>
+            {/* Only show save payment option if not using a saved card */}
+            {!selectedSavedCard && (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="savePayment"
+                  checked={savePayment}
+                  onChange={(e) => setSavePayment(e.target.checked)}
+                />
+                <Label htmlFor="savePayment">
+                  Save payment details for future bookings (masked)
+                </Label>
+              </div>
+            )}
             <div className="flex items-center space-x-4">
               <Label>Payment Outcome:</Label>
               <select
