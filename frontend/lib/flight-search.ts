@@ -1,6 +1,7 @@
 import type { Flight, SearchParams, Airport } from "./types";
 
-const API_BASE = "http://localhost:4000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
 // Helper to check flight status before booking
 export async function checkFlightStatusBeforeBooking(

@@ -38,6 +38,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
 interface BookingFormProps {
   flights: Flight[];
@@ -51,7 +52,7 @@ interface BookingFormProps {
       cvv: string;
       name: string;
     }
-  ) => void;
+  ) => Promise<string | undefined>;
   loading?: boolean;
 }
 
@@ -130,6 +131,7 @@ export function BookingForm({
   const [pendingPayment, setPendingPayment] = useState(false);
   const [showBookingErrorModal, setShowBookingErrorModal] = useState(false);
   const [bookingErrorMessage, setBookingErrorMessage] = useState("");
+  const router = useRouter();
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
@@ -298,9 +300,12 @@ export function BookingForm({
           }),
         });
       }
-      // Try to submit booking
+      // Try to submit booking and redirect to confirmation
       try {
-        await onSubmit(passengers, contactInfo, maskedCard);
+        const bookingId = await onSubmit(passengers, contactInfo, maskedCard);
+        if (bookingId) {
+          router.push(`/booking/confirmation/${bookingId}`);
+        }
       } catch (err) {
         setShowBookingErrorModal(true);
         setBookingErrorMessage(
