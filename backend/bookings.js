@@ -1071,16 +1071,53 @@ router.post('/:id/change-seat-class', async (req, res) => {
     if (fbError || !flightBooking) {
       return res.status(404).json({ error: 'Flight booking not found for this passenger' });
     }
-    // Optionally: Check if there are available seats in the new class
-    // (You can add logic here to check seat availability if needed)
-    // Update the seat class and clear seat number (to be reassigned)
+    // Fetch the flight to get the new price for the selected class
+    const { data: flight, error: flightError } = await supabase
+      .from('flights')
+      .select('*')
+      .eq('id', flightBooking.flight_id)
+      .single();
+    if (flightError || !flight) {
+      return res.status(404).json({ error: 'Flight not found' });
+    }
+    let newPrice = flight.base_price;
+    switch (seat_class) {
+      case 'economy':
+        newPrice = flight.economy_price ?? flight.base_price;
+        break;
+      case 'premium_economy':
+        newPrice = flight.premium_price ?? flight.base_price;
+        break;
+      case 'business':
+        newPrice = flight.business_price ?? flight.base_price;
+        break;
+      case 'first_class':
+        newPrice = flight.first_price ?? flight.base_price;
+        break;
+      default:
+        newPrice = flight.base_price;
+    }
+    // Update the seat class, clear seat number, and update price
     const { error: updateError } = await supabase
       .from('flight_bookings')
-      .update({ seat_class, seat_number: null })
+      .update({ seat_class, seat_number: null, price: newPrice })
       .eq('id', flightBooking.id);
     if (updateError) {
       return res.status(500).json({ error: 'Failed to update seat class' });
     }
+    // Recalculate and update the booking total
+    const { data: allBookings, error: sumError } = await supabase
+      .from('flight_bookings')
+      .select('price')
+      .eq('booking_id', id);
+    if (sumError) {
+      return res.status(500).json({ error: 'Failed to recalculate booking total' });
+    }
+    const newTotal = (allBookings || []).reduce((sum, fb) => sum + (fb.price || 0), 0);
+    await supabase
+      .from('bookings')
+      .update({ total_amount: newTotal })
+      .eq('id', id);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -1089,19 +1126,68 @@ router.post('/:id/change-seat-class', async (req, res) => {
 
 // Change seat class for specific flight_booking (already exists)
 router.post('/:id/change-seat-class/:flight_booking_id', async (req, res) => {
-  const { flight_booking_id } = req.params;
+  const { id, flight_booking_id } = req.params;
   const { seat_class } = req.body;
   if (!seat_class) {
     return res.status(400).json({ error: 'Missing seat_class' });
   }
   try {
+    // Fetch the flight_booking
+    const { data: flightBooking, error: fbError } = await supabase
+      .from('flight_bookings')
+      .select('*')
+      .eq('id', flight_booking_id)
+      .single();
+    if (fbError || !flightBooking) {
+      return res.status(404).json({ error: 'Flight booking not found' });
+    }
+    // Fetch the flight to get the new price for the selected class
+    const { data: flight, error: flightError } = await supabase
+      .from('flights')
+      .select('*')
+      .eq('id', flightBooking.flight_id)
+      .single();
+    if (flightError || !flight) {
+      return res.status(404).json({ error: 'Flight not found' });
+    }
+    let newPrice = flight.base_price;
+    switch (seat_class) {
+      case 'economy':
+        newPrice = flight.economy_price ?? flight.base_price;
+        break;
+      case 'premium_economy':
+        newPrice = flight.premium_price ?? flight.base_price;
+        break;
+      case 'business':
+        newPrice = flight.business_price ?? flight.base_price;
+        break;
+      case 'first_class':
+        newPrice = flight.first_price ?? flight.base_price;
+        break;
+      default:
+        newPrice = flight.base_price;
+    }
+    // Update the seat class, clear seat number, and update price
     const { error: updateError } = await supabase
       .from('flight_bookings')
-      .update({ seat_class, seat_number: null })
+      .update({ seat_class, seat_number: null, price: newPrice })
       .eq('id', flight_booking_id);
     if (updateError) {
       return res.status(500).json({ error: 'Failed to update seat class' });
     }
+    // Recalculate and update the booking total
+    const { data: allBookings, error: sumError } = await supabase
+      .from('flight_bookings')
+      .select('price')
+      .eq('booking_id', flightBooking.booking_id);
+    if (sumError) {
+      return res.status(500).json({ error: 'Failed to recalculate booking total' });
+    }
+    const newTotal = (allBookings || []).reduce((sum, fb) => sum + (fb.price || 0), 0);
+    await supabase
+      .from('bookings')
+      .update({ total_amount: newTotal })
+      .eq('id', flightBooking.booking_id);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
@@ -1186,16 +1272,53 @@ router.post('/:id/change-seat-class-by-flight', async (req, res) => {
       return res.status(404).json({ error: 'Flight booking not found' });
     }
 
-    // Update the seat class and clear seat number
+    // Fetch the flight to get the new price for the selected class
+    const { data: flight, error: flightError } = await supabase
+      .from('flights')
+      .select('*')
+      .eq('id', flight_id)
+      .single();
+    if (flightError || !flight) {
+      return res.status(404).json({ error: 'Flight not found' });
+    }
+    let newPrice = flight.base_price;
+    switch (seat_class) {
+      case 'economy':
+        newPrice = flight.economy_price ?? flight.base_price;
+        break;
+      case 'premium_economy':
+        newPrice = flight.premium_price ?? flight.base_price;
+        break;
+      case 'business':
+        newPrice = flight.business_price ?? flight.base_price;
+        break;
+      case 'first_class':
+        newPrice = flight.first_price ?? flight.base_price;
+        break;
+      default:
+        newPrice = flight.base_price;
+    }
+    // Update the seat class, clear seat number, and update price
     const { error: updateError } = await supabase
       .from('flight_bookings')
-      .update({ seat_class, seat_number: null })
+      .update({ seat_class, seat_number: null, price: newPrice })
       .eq('id', flightBooking.id);
-
     if (updateError) {
       return res.status(500).json({ error: 'Failed to update seat class' });
     }
-
+    // Recalculate and update the booking total
+    const { data: allBookings, error: sumError } = await supabase
+      .from('flight_bookings')
+      .select('price')
+      .eq('booking_id', id);
+    if (sumError) {
+      return res.status(500).json({ error: 'Failed to recalculate booking total' });
+    }
+    const newTotal = (allBookings || []).reduce((sum, fb) => sum + (fb.price || 0), 0);
+    await supabase
+      .from('bookings')
+      .update({ total_amount: newTotal })
+      .eq('id', id);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });

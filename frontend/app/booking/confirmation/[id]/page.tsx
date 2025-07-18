@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,8 +15,9 @@ import {
   Plane,
   AlertTriangle,
   Loader2,
+  CreditCard,
 } from "lucide-react";
-import type { Booking } from "@/lib/types";
+import type { Booking, SavedPayment } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -122,11 +122,19 @@ export default function BookingConfirmationPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [savedCards, setSavedCards] = useState<any[]>([]);
-  const [selectedCard, setSelectedCard] = useState<any | null>(null);
+  const [savedCards, setSavedCards] = useState<SavedPayment[]>([]);
+  const [selectedCard, setSelectedCard] = useState<SavedPayment | null>(null);
   const [priceDifference, setPriceDifference] = useState(0);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Payment form state
+  const [paymentForm, setPaymentForm] = useState({
+    cardNumber: "",
+    expiryDate: "",
+    cvv: "",
+    cardholderName: "",
+  });
 
   const bookingId = params.id as string;
   const [flightId, setFlightId] = useState<string | null>(null);
@@ -135,6 +143,9 @@ export default function BookingConfirmationPage() {
 
   // Add state to track removed passenger IDs
   const [removedPassengerIds, setRemovedPassengerIds] = useState<string[]>([]);
+
+  // Store original booking data for price comparison
+  const [originalBookingData, setOriginalBookingData] = useState<any>(null);
 
   // Group flight_bookings by unique flight
   const uniqueFlights =
@@ -170,9 +181,11 @@ export default function BookingConfirmationPage() {
         if (!res.ok) throw new Error("Failed to fetch booking");
         const data = await res.json();
         setBooking(data);
+        setOriginalBookingData(deepClone(data)); // Store original data
         const fid = data?.flight_bookings?.[0]?.flight?.id;
         console.log("Fetched booking, flightId:", fid);
         setFlightId(fid);
+
         // Fetch latest status immediately after setting flight ID
         if (fid) {
           const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
@@ -216,7 +229,6 @@ export default function BookingConfirmationPage() {
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
     const url = `${API_BASE}/flight-status?flightId=${flightId}`;
-
     console.log("Setting up SSE connection to:", url);
 
     const es = new EventSource(url);
@@ -256,6 +268,71 @@ export default function BookingConfirmationPage() {
     if (booking && booking.user_id) setUserId(booking.user_id);
   }, [booking]);
 
+  // Load saved payment methods
+  useEffect(() => {
+    const loadSavedCards = async () => {
+      if (!userId) return;
+      try {
+        const cards = await getPayments(userId);
+        setSavedCards(cards || []);
+      } catch (error) {
+        console.error("Failed to load saved cards:", error);
+      }
+    };
+
+    loadSavedCards();
+  }, [userId]);
+
+  // Helper to get seat price for a given class
+  function getSeatPrice(flight: any, seatClass: string) {
+    switch (seatClass) {
+      case "economy":
+        return flight.economy_price ?? flight.base_price;
+      case "premium_economy":
+        return flight.premium_price ?? flight.base_price;
+      case "business":
+        return flight.business_price ?? flight.base_price;
+      case "first_class":
+        return flight.first_price ?? flight.base_price;
+      default:
+        return flight.base_price;
+    }
+  }
+
+  // Calculate price difference between original and new booking
+  const calculatePriceDifference = () => {
+    if (!originalBookingData || !booking) return 0;
+
+    let originalTotal = 0;
+    let newTotal = 0;
+
+    // Calculate original total
+    originalBookingData.flight_bookings?.forEach((fb: any) => {
+      const price = getSeatPrice(fb.flight, fb.seat_class);
+      originalTotal += price;
+    });
+
+    // Calculate new total based on modal passengers
+    modalPassengers.forEach((passenger) => {
+      passenger.flights?.forEach((flight: any) => {
+        const flightData =
+          modalAvailableFlights.find((f) => f.id === flight.flight_id) ||
+          originalBookingData.flight_bookings?.find(
+            (fb: any) => fb.flight.id === flight.flight_id
+          )?.flight;
+        if (flightData) {
+          const price = getSeatPrice(
+            flightData,
+            flight.seat_class || "economy"
+          );
+          newTotal += price;
+        }
+      });
+    });
+
+    return newTotal - originalTotal;
+  };
+
   // Open modal and prefill data
   const openEditModal = async () => {
     if (!booking) return;
@@ -288,6 +365,7 @@ export default function BookingConfirmationPage() {
         });
       }
     });
+
     setModalPassengers(Object.values(passengerMap));
     setOriginalPassengerNames(
       (booking.passengers || []).map((p: any) => ({
@@ -295,6 +373,7 @@ export default function BookingConfirmationPage() {
         last_name: p.last_name,
       }))
     );
+
     setModalFlightId(booking.flight_bookings?.[0]?.flight?.id || null);
 
     // Fetch available flights for the same route
@@ -305,6 +384,7 @@ export default function BookingConfirmationPage() {
         booking.flight_bookings?.[0]?.flight?.destination_airport?.code;
       const departureDate =
         booking.flight_bookings?.[0]?.flight?.departure_time?.split("T")[0];
+
       const res = await fetch(
         `${API_BASE}/flights/search?origin=${origin}&destination=${destination}&departureDate=${departureDate}`
       );
@@ -313,6 +393,7 @@ export default function BookingConfirmationPage() {
     } catch {
       setModalAvailableFlights([]);
     }
+
     setShowEditModal(true);
   };
 
@@ -371,6 +452,34 @@ export default function BookingConfirmationPage() {
     });
   };
 
+  // Handle payment processing
+  const processPayment = async () => {
+    setPaymentProcessing(true);
+    setPaymentError(null);
+
+    try {
+      // Simulate payment processing
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // In a real implementation, you would integrate with a payment processor here
+      // For now, we'll simulate a successful payment
+
+      setPaymentSuccess(true);
+      setShowPaymentModal(false);
+
+      toast({
+        title: "Payment successful!",
+        description: `Payment of $${priceDifference.toFixed(
+          2
+        )} processed successfully.`,
+      });
+    } catch (error: any) {
+      setPaymentError(error.message || "Payment failed. Please try again.");
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+
   // Save all changes from modal
   const saveModalEdits = async () => {
     setModalSaving(true);
@@ -381,23 +490,39 @@ export default function BookingConfirmationPage() {
     if (!modalContact.email || !validateEmail(modalContact.email)) {
       setModalError("Invalid email");
       setModalSaving(false);
+      setUpdating(false);
       return;
     }
 
     if (!modalContact.phone || !validatePhone(modalContact.phone)) {
       setModalError("Invalid phone");
       setModalSaving(false);
+      setUpdating(false);
+      return;
+    }
+
+    // Calculate price difference
+    const priceDiff = calculatePriceDifference();
+    setPriceDifference(priceDiff);
+
+    // If price is higher and payment hasn't been processed, show payment modal
+    if (priceDiff > 0 && !paymentSuccess) {
+      setShowPaymentModal(true);
+      setModalSaving(false);
+      setUpdating(false);
       return;
     }
 
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+
       // 1. Remove deleted passengers from backend
       for (const pid of removedPassengerIds) {
         await fetch(`${API_BASE}/bookings/${bookingId}/passenger/${pid}`, {
           method: "DELETE",
         });
       }
+
       // 2. Save contact info and passenger details
       await fetch(`${API_BASE}/bookings/${bookingId}`, {
         method: "PUT",
@@ -432,6 +557,7 @@ export default function BookingConfirmationPage() {
               }
             );
           }
+
           if (f.seat_number) {
             await fetch(
               `${API_BASE}/bookings/${bookingId}/change-seat-number-by-flight`,
@@ -496,7 +622,7 @@ export default function BookingConfirmationPage() {
 
       if (error) throw error;
       setBooking(data);
-
+      setOriginalBookingData(deepClone(data)); // Update original data
       setShowSuccessBanner(true);
       setTimeout(() => setShowSuccessBanner(false), 3000);
 
@@ -518,17 +644,16 @@ export default function BookingConfirmationPage() {
       setEmailSending(false);
       setUpdating(false);
       setRemovedPassengerIds([]); // Clear after save
+      setPaymentSuccess(false); // Reset payment success
     }
   };
 
   // Handle payment success and continue save
   useEffect(() => {
-    if (paymentSuccess && showPaymentModal) {
-      setShowPaymentModal(false);
-      setPaymentSuccess(false);
+    if (paymentSuccess && !showPaymentModal) {
       setTimeout(() => {
         saveModalEdits();
-      }, 0);
+      }, 100);
     }
   }, [paymentSuccess, showPaymentModal]);
 
@@ -848,15 +973,12 @@ export default function BookingConfirmationPage() {
   const confirmCancelBooking = async () => {
     setCancelling(true);
     setCancelError(null);
-
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
       const res = await fetch(`${API_BASE}/bookings/${bookingId}/cancel`, {
         method: "POST",
       });
-
       if (!res.ok) throw new Error("Failed to cancel booking");
-
       setCancelled(true);
       window.location.reload();
     } catch (err: any) {
@@ -878,9 +1000,7 @@ export default function BookingConfirmationPage() {
           method: "POST",
         }
       );
-
       if (!res.ok) throw new Error("Failed to send confirmation email");
-
       toast({
         title: "Confirmation email sent!",
         description: `A new confirmation email has been sent to ${booking.contact_email}.`,
@@ -904,9 +1024,7 @@ export default function BookingConfirmationPage() {
       const res = await fetch(`${API_BASE}/bookings/${bookingId}/pdf`, {
         method: "GET",
       });
-
       if (!res.ok) throw new Error("Failed to download e-ticket");
-
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -916,7 +1034,6 @@ export default function BookingConfirmationPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-
       toast({
         title: "E-Ticket downloaded!",
         description: "Check your downloads for the PDF.",
@@ -949,7 +1066,6 @@ export default function BookingConfirmationPage() {
         Math.min(a.length, b.length) -
         [...a].filter((c, i) => b[i] === c).length
       );
-
     let diff = 0;
     for (let i = 0; i < a.length; i++) {
       if (a[i] !== b[i]) diff++;
@@ -967,22 +1083,6 @@ export default function BookingConfirmationPage() {
     );
     return liveStatus || flight?.status || "unknown";
   };
-
-  // Helper to get seat price for a given class
-  function getSeatPrice(flight: any, seatClass: string) {
-    switch (seatClass) {
-      case "economy":
-        return flight.economy_price ?? flight.base_price;
-      case "premium_economy":
-        return flight.premium_price ?? flight.base_price;
-      case "business":
-        return flight.business_price ?? flight.base_price;
-      case "first_class":
-        return flight.first_price ?? flight.base_price;
-      default:
-        return flight.base_price;
-    }
-  }
 
   // Helper to get badge variant for booking status
   function getBadgeVariant(status: string) {
@@ -1218,7 +1318,9 @@ export default function BookingConfirmationPage() {
                                 "http://localhost:4000";
                               await fetch(
                                 `${API_BASE}/bookings/${booking.id}/cancel-flight/${fb.id}`,
-                                { method: "POST" }
+                                {
+                                  method: "POST",
+                                }
                               );
                               window.location.reload();
                             }}
@@ -1772,6 +1874,151 @@ export default function BookingConfirmationPage() {
               </DialogFooter>
             </form>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <CreditCard className="w-5 h-5" />
+              <span>Payment Required</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="text-sm text-blue-800">
+                Your seat upgrade requires an additional payment of{" "}
+                <span className="font-bold">${priceDifference.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {paymentError && (
+              <Alert variant="destructive">
+                <AlertDescription>{paymentError}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Saved Cards */}
+            {savedCards.length > 0 && (
+              <div className="space-y-2">
+                <Label>Saved Payment Methods</Label>
+                {savedCards.map((card) => (
+                  <div
+                    key={card.id}
+                    className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                      selectedCard?.id === card.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    onClick={() => setSelectedCard(card)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <CreditCard className="w-4 h-4" />
+                        <div>
+                          <div className="font-medium">
+                            •••• •••• •••• {card.card_last4}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {card.card_name} • Expires {card.card_expiry}
+                          </div>
+                        </div>
+                      </div>
+                      {selectedCard?.id === card.id && (
+                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                          <div className="w-2 h-2 bg-white rounded-full" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* New Card Form */}
+            {(!selectedCard || savedCards.length === 0) && (
+              <div className="space-y-3">
+                <Label>Payment Details</Label>
+                <Input
+                  placeholder="Card Number"
+                  value={paymentForm.cardNumber}
+                  onChange={(e) =>
+                    setPaymentForm((prev) => ({
+                      ...prev,
+                      cardNumber: e.target.value,
+                    }))
+                  }
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="MM/YY"
+                    value={paymentForm.expiryDate}
+                    onChange={(e) =>
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        expiryDate: e.target.value,
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="CVV"
+                    value={paymentForm.cvv}
+                    onChange={(e) =>
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        cvv: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <Input
+                  placeholder="Cardholder Name"
+                  value={paymentForm.cardholderName}
+                  onChange={(e) =>
+                    setPaymentForm((prev) => ({
+                      ...prev,
+                      cardholderName: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPaymentModal(false);
+                setPaymentError(null);
+              }}
+              disabled={paymentProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={processPayment}
+              disabled={
+                paymentProcessing ||
+                (!selectedCard &&
+                  (!paymentForm.cardNumber ||
+                    !paymentForm.expiryDate ||
+                    !paymentForm.cvv ||
+                    !paymentForm.cardholderName))
+              }
+            >
+              {paymentProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                `Pay $${priceDifference.toFixed(2)}`
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
