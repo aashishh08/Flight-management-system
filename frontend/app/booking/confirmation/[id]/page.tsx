@@ -1298,35 +1298,8 @@ export default function BookingConfirmationPage() {
                           <div>{flight.aircraft?.model || "-"}</div>
                         </div>
                         <div className="flex gap-2 mt-4">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              if (
-                                !window.confirm(
-                                  "Are you sure you want to cancel this flight?"
-                                )
-                              )
-                                return;
-                              // Find a flight_booking for this flight
-                              const fb = booking.flight_bookings.find(
-                                (fb) => fb.flight.id === flight.id
-                              );
-                              if (!fb) return;
-                              const API_BASE =
-                                process.env.NEXT_PUBLIC_API_BASE ||
-                                "http://localhost:4000";
-                              await fetch(
-                                `${API_BASE}/bookings/${booking.id}/cancel-flight/${fb.id}`,
-                                {
-                                  method: "POST",
-                                }
-                              );
-                              window.location.reload();
-                            }}
-                          >
-                            Cancel Flight
-                          </Button>
+                          {/* Remove Cancel Flight button for round trip (multiple flights) */}
+                          {/* Previously, a Cancel Flight button was here. It is now removed for round trip bookings. */}
                         </div>
                       </>
                     )}
