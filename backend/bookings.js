@@ -1259,4 +1259,45 @@ router.post('/:id/change-seat-number-by-flight', async (req, res) => {
   }
 });
 
+// Remove a passenger from a booking
+router.delete('/:bookingId/passenger/:passengerId', async (req, res) => {
+  const { bookingId, passengerId } = req.params;
+  try {
+    // Delete all flight_bookings for this passenger and booking
+    await supabase
+      .from('flight_bookings')
+      .delete()
+      .eq('booking_id', bookingId)
+      .eq('passenger_id', passengerId);
+
+    // Delete the passenger
+    await supabase
+      .from('passengers')
+      .delete()
+      .eq('id', passengerId)
+      .eq('booking_id', bookingId);
+
+    // Recalculate total_amount for the booking
+    const { data: remainingBookings, error: remBookError } = await supabase
+      .from('flight_bookings')
+      .select('price')
+      .eq('booking_id', bookingId);
+    console.log('DEBUG: Remaining flight_bookings:', remainingBookings);
+    if (remBookError) throw remBookError;
+    const newTotal = (remainingBookings || []).reduce((sum, fb) => sum + (fb.price || 0), 0);
+    console.log('DEBUG: New total_amount to set:', newTotal);
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ total_amount: newTotal })
+      .eq('id', bookingId);
+    if (updateError) {
+      console.error('ERROR: Failed to update total_amount:', updateError);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('ERROR: Exception in passenger delete:', err);
+    res.status(500).json({ error: 'Failed to remove passenger from booking' });
+  }
+});
+
 export default router;

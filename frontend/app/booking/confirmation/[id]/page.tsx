@@ -133,6 +133,9 @@ export default function BookingConfirmationPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [skipPriceCheck, setSkipPriceCheck] = useState(false);
 
+  // Add state to track removed passenger IDs
+  const [removedPassengerIds, setRemovedPassengerIds] = useState<string[]>([]);
+
   // Group flight_bookings by unique flight
   const uniqueFlights =
     booking && booking.flight_bookings
@@ -159,34 +162,17 @@ export default function BookingConfirmationPage() {
   useEffect(() => {
     const fetchBooking = async () => {
       try {
-        const { data, error } = await supabase
-          .from("bookings")
-          .select(
-            `
-            *,
-            passengers(*),
-            flight_bookings(
-              *,
-              flight:flights(
-                *,
-                airline:airlines(*),
-                origin_airport:airports!flights_origin_airport_id_fkey(*),
-                destination_airport:airports!flights_destination_airport_id_fkey(*)
-              ),
-              passenger:passengers(*)
-            )
-          `
-          )
-          .eq("id", bookingId)
-          .single();
-
-        if (error) throw error;
-
+        // Use direct fetch to force cache: 'no-store'
+        const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+        const res = await fetch(`${API_BASE}/bookings/${bookingId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("Failed to fetch booking");
+        const data = await res.json();
         setBooking(data);
         const fid = data?.flight_bookings?.[0]?.flight?.id;
         console.log("Fetched booking, flightId:", fid);
         setFlightId(fid);
-
         // Fetch latest status immediately after setting flight ID
         if (fid) {
           const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
@@ -210,10 +196,10 @@ export default function BookingConfirmationPage() {
             console.log("Latest status API fetch error:", err);
           }
         }
+        setLoading(false);
       } catch (err) {
         setError("Failed to load booking details");
         console.error("Booking fetch error:", err);
-      } finally {
         setLoading(false);
       }
     };
@@ -376,7 +362,13 @@ export default function BookingConfirmationPage() {
   };
 
   const removeModalPassenger = (idx: number) => {
-    setModalPassengers((prev) => prev.filter((_, i) => i !== idx));
+    setModalPassengers((prev) => {
+      const removed = prev[idx];
+      if (removed && removed.id) {
+        setRemovedPassengerIds((ids: string[]) => [...ids, removed.id]);
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
   };
 
   // Save all changes from modal
@@ -398,11 +390,15 @@ export default function BookingConfirmationPage() {
       return;
     }
 
-    // Remove all passenger field validations
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
-
-      // Save contact info and passenger details
+      // 1. Remove deleted passengers from backend
+      for (const pid of removedPassengerIds) {
+        await fetch(`${API_BASE}/bookings/${bookingId}/passenger/${pid}`, {
+          method: "DELETE",
+        });
+      }
+      // 2. Save contact info and passenger details
       await fetch(`${API_BASE}/bookings/${bookingId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -521,6 +517,7 @@ export default function BookingConfirmationPage() {
       setModalSaving(false);
       setEmailSending(false);
       setUpdating(false);
+      setRemovedPassengerIds([]); // Clear after save
     }
   };
 
