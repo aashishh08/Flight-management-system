@@ -1473,8 +1473,6 @@ export default function BookingConfirmationPage() {
                 />
               </div>
 
-             
-
               {/* Passengers */}
               <div>
                 <Label>Passengers</Label>
@@ -1601,7 +1599,6 @@ export default function BookingConfirmationPage() {
                         )
                       }
                       placeholder="Passport Number"
-                      required
                     />
                     {/* Nationality (read-only) */}
                     <div className="space-y-2">

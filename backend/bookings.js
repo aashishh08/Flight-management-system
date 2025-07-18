@@ -217,6 +217,14 @@ router.post('/', async (req, res) => {
       .update({ total_amount: dbTotalAmount })
       .eq('id', booking.id);
 
+    // Fetch the updated booking with correct total_amount
+    const { data: updatedBooking, error: fetchUpdatedError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', booking.id)
+      .single();
+    if (fetchUpdatedError || !updatedBooking) throw fetchUpdatedError || new Error('Failed to fetch updated booking');
+
     // Log booking creation in booking_status_logs
     await supabase
       .from('booking_status_logs')
@@ -293,16 +301,16 @@ router.post('/', async (req, res) => {
     // Booking summary
     let bookingSummaryHtml = `<h3>Booking Summary</h3>
       <ul>
-        <li><b>Booking Date:</b> ${new Date(booking.booking_date).toLocaleString()}</li>
-        <li><b>Status:</b> ${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}</li>
-        <li><b>Total Amount:</b> $${Number(booking.total_amount).toFixed(2)}</li>
+        <li><b>Booking Date:</b> ${new Date(updatedBooking.booking_date).toLocaleString()}</li>
+        <li><b>Status:</b> ${updatedBooking.status.charAt(0).toUpperCase() + updatedBooking.status.slice(1)}</li>
+        <li><b>Total Amount:</b> $${Number(updatedBooking.total_amount).toFixed(2)}</li>
       </ul>`;
 
     // Contact info
     let contactHtml = `<h3>Contact Information</h3>
       <ul>
-        <li><b>Email:</b> ${booking.contact_email}</li>
-        <li><b>Phone:</b> ${booking.contact_phone || '-'}</li>
+        <li><b>Email:</b> ${updatedBooking.contact_email}</li>
+        <li><b>Phone:</b> ${updatedBooking.contact_phone || '-'}</li>
       </ul>`;
 
     // Important info
@@ -408,6 +416,20 @@ router.post('/:id/cancel', async (req, res) => {
   // Optionally, get userId from req.body or session if available
   const userId = req.body?.userId || null;
   try {
+    // Fetch all associated flights' departure times
+    const { data: flightBookings, error: fbError } = await supabase
+      .from('flight_bookings')
+      .select('flight:flights(departure_time)')
+      .eq('booking_id', id);
+    if (fbError) throw fbError;
+    const now = new Date();
+    const hasDeparted = (flightBookings || []).some(fb => {
+      const dep = fb.flight?.departure_time ? new Date(fb.flight.departure_time) : null;
+      return dep && dep <= now;
+    });
+    if (hasDeparted) {
+      return res.status(400).json({ error: 'Cannot cancel booking after one or more flights have departed.' });
+    }
     // Get previous status
     const { data: prevBooking } = await supabase
       .from('bookings')
@@ -434,12 +456,12 @@ router.post('/:id/cancel', async (req, res) => {
 
     // Optionally, release seats (increment available seats for each flight)
     // Get flight_bookings for this booking
-    const { data: flightBookings, error: fbError } = await supabase
+    const { data: flightBookingsToRelease, error: fbErrorToRelease } = await supabase
       .from('flight_bookings')
       .select('flight_id, seat_class')
       .eq('booking_id', id);
-    if (fbError) throw fbError;
-    for (const fb of flightBookings || []) {
+    if (fbErrorToRelease) throw fbErrorToRelease;
+    for (const fb of flightBookingsToRelease || []) {
       let availableField = '';
       switch (fb.seat_class) {
         case 'economy': availableField = 'available_economy'; break;
@@ -496,14 +518,18 @@ router.post('/:id/cancel', async (req, res) => {
 router.post('/:id/cancel-flight/:flight_booking_id', async (req, res) => {
   const { id, flight_booking_id } = req.params;
   try {
-    // Fetch the flight_booking
+    // Fetch the flight_booking and its flight's departure time
     const { data: flightBooking, error: fbError } = await supabase
       .from('flight_bookings')
-      .select('*')
+      .select('*, flight:flights(departure_time)')
       .eq('id', flight_booking_id)
       .single();
     if (fbError || !flightBooking) throw fbError || new Error('Flight booking not found');
-
+    const now = new Date();
+    const dep = flightBooking.flight?.departure_time ? new Date(flightBooking.flight.departure_time) : null;
+    if (dep && dep <= now) {
+      return res.status(400).json({ error: 'Cannot cancel a flight after it has departed.' });
+    }
     // Release seat (increment available seats for this flight/class)
     let availableField = '';
     switch (flightBooking.seat_class) {
@@ -686,7 +712,7 @@ router.post('/:id/send-confirmation', async (req, res) => {
           <li><b>To:</b> ${flight.destination_airport?.city || '-'} (${flight.destination_airport?.code || '-'})</li>
           <li><b>Departure:</b> ${flight.departure_time ? new Date(flight.departure_time).toLocaleString() : '-'}</li>
           <li><b>Arrival:</b> ${flight.arrival_time ? new Date(flight.arrival_time).toLocaleString() : '-'}</li>
-          <li><b>Aircraft:</b> ${flight.aircraft?.model || '-'}</li>
+          <li><b>Aircraft:</b> ${flight.aircraft?.model || flight.aircraft_name || '-'}</li>
           <li><b>Duration:</b> ${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m</li>
         </ul>`;
       // Passenger table for this flight
