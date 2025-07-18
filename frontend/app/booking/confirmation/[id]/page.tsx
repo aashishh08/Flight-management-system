@@ -1748,6 +1748,7 @@ export default function BookingConfirmationPage() {
 
               <DialogFooter className="sticky bottom-0 z-10 bg-white/90 backdrop-blur p-4 rounded-b-2xl border-t">
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => {
                     setShowEditModal(false);

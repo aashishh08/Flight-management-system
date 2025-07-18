@@ -48,6 +48,7 @@ export function FlightSearchForm({ onSearch, loading }: FlightSearchFormProps) {
     "economy" | "premium_economy" | "business" | "first_class"
   >("economy");
   const [airports, setAirports] = useState<Airport[]>([]);
+  const [showReturnDateError, setShowReturnDateError] = useState(false);
 
   // Restore form state from localStorage on mount
   useEffect(() => {
@@ -81,7 +82,12 @@ export function FlightSearchForm({ onSearch, loading }: FlightSearchFormProps) {
   }, []);
 
   const handleSearch = () => {
+    setShowReturnDateError(false);
     if (!origin || !destination || !departureDate) {
+      return;
+    }
+    if (tripType === "round-trip" && !returnDate) {
+      setShowReturnDateError(true);
       return;
     }
 
@@ -402,6 +408,12 @@ export function FlightSearchForm({ onSearch, loading }: FlightSearchFormProps) {
                 </Select>
               </div>
             </div>
+
+            {showReturnDateError && (
+              <div className="text-destructive text-sm mb-2">
+                Please select a return date for round-trip flights.
+              </div>
+            )}
 
             <Button
               onClick={handleSearch}
